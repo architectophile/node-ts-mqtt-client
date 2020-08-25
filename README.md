@@ -1,4 +1,4 @@
-# A sample project with Node.js, TypeScript, ESLint, and Prettier
+# A sample project for a mqtt client with Node.js, TypeScript, ESLint, and Prettier
 
 <br/>
 
