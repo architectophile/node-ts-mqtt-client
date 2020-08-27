@@ -1,9 +1,10 @@
-export const TOPIC_SEC_CLIENT_OPEN = "/nCube/security/client/open";
-export const TOPIC_SEC_CLIENT_START_TLS = "/nCube/security/client/start-tls";
-export const TOPIC_SEC_CLIENT_REQ_ENC = "/nCube/security/client/req-enc";
-export const TOPIC_SEC_CLIENT_RES_ENC = "/nCube/security/client/res-enc";
+// Subscribe topics
+export const TOPIC_NCUBE_CONTROL_AUTH_START = "/nCube/Control/Auth/start";
+export const TOPIC_NCUBE_CONTROL_AUTH_REQ_AUTH = "/nCube/Control/Auth/req_auth";
+export const TOPIC_NCUBE_CONTROL_ENC_REQ_ENC = "/nCube/Control/Enc/req_enc";
+export const TOPIC_NCUBE_CONTROL_SIG_REQ_SIG = "/nCube/Control/Sig/req_sig";
 
-export const TOPIC_SEC_SERVER_OPEN = "/nCube/security/server/open";
-export const TOPIC_SEC_SERVER_START_TLS = "/nCube/security/server/start-tls";
-export const TOPIC_SEC_SERVER_REQ_ENC = "/nCube/security/server/req-enc";
-export const TOPIC_SEC_SERVER_RES_ENC = "/nCube/security/server/res-enc";
+// Publish topics
+export const TOPIC_NCUBE_DATA_AUTH_RES_AUTH = "/nCube/Data/Auth/res_auth";
+export const TOPIC_NCUBE_DATA_ENC_RES_ENC = "/nCube/Data/Enc/res_enc";
+export const TOPIC_NCUBE_DATA_SIG_RES_SIG = "/nCube/Data/Sig/res_sig";

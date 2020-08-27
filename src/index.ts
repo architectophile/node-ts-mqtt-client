@@ -1,11 +1,26 @@
-import mqtt, { Packet } from "mqtt";
+import mqtt, { MqttClient, Packet } from "mqtt";
+import { FAILURE, SUCCESS } from "./Constants";
+import Dim, { ReadHandler, WriteHandler } from "./Dim";
+
 import {
-  TOPIC_SEC_CLIENT_OPEN,
-  TOPIC_SEC_CLIENT_START_TLS,
-  TOPIC_SEC_CLIENT_REQ_ENC,
-  TOPIC_SEC_CLIENT_RES_ENC,
-  TOPIC_SEC_SERVER_RES_ENC,
-} from "./topics";
+  TOPIC_NCUBE_CONTROL_AUTH_START,
+  TOPIC_NCUBE_CONTROL_AUTH_REQ_AUTH,
+  TOPIC_NCUBE_CONTROL_ENC_REQ_ENC,
+  TOPIC_NCUBE_CONTROL_SIG_REQ_SIG,
+  TOPIC_NCUBE_DATA_AUTH_RES_AUTH,
+} from "./Topics";
+
+interface ResAuth {
+  resolve?: (
+    value?: string | PromiseLike<string | null> | null | undefined,
+  ) => void;
+  buffer: string[];
+}
+
+const registeredResAuth: ResAuth = {
+  resolve: undefined,
+  buffer: [],
+};
 
 const isSecure = false;
 const host = "localhost";
@@ -14,7 +29,7 @@ const protocol = isSecure ? "mqtts" : "mqtt";
 const protocolId = "MQTT";
 const protocolVersion = 4;
 
-const interval = 5000;
+const interval = 500;
 
 const connectOptions = {
   host,
@@ -34,24 +49,24 @@ const connectOptions = {
 const mqtt_client = mqtt.connect(connectOptions);
 
 mqtt_client.on("connect", () => {
-  mqtt_client.subscribe(TOPIC_SEC_CLIENT_OPEN);
-  console.log("subscribe security topic open as " + TOPIC_SEC_CLIENT_OPEN);
-
-  mqtt_client.subscribe(TOPIC_SEC_CLIENT_START_TLS);
+  mqtt_client.subscribe(TOPIC_NCUBE_CONTROL_AUTH_START);
   console.log(
-    "subscribe security topic start TLS as " + TOPIC_SEC_CLIENT_START_TLS,
+    "subscribe auth start topic at " + TOPIC_NCUBE_CONTROL_AUTH_START,
   );
 
-  mqtt_client.subscribe(TOPIC_SEC_CLIENT_REQ_ENC);
+  mqtt_client.subscribe(TOPIC_NCUBE_CONTROL_AUTH_REQ_AUTH);
   console.log(
-    "subscribe security topic encryption request as " +
-      TOPIC_SEC_CLIENT_REQ_ENC,
+    "subscribe auth request topic at " + TOPIC_NCUBE_CONTROL_AUTH_REQ_AUTH,
   );
 
-  mqtt_client.subscribe(TOPIC_SEC_SERVER_RES_ENC);
+  mqtt_client.subscribe(TOPIC_NCUBE_CONTROL_ENC_REQ_ENC);
   console.log(
-    "subscribe security topic encryption request as " +
-      TOPIC_SEC_SERVER_RES_ENC,
+    "subscribe encryption request topic at " + TOPIC_NCUBE_CONTROL_ENC_REQ_ENC,
+  );
+
+  mqtt_client.subscribe(TOPIC_NCUBE_CONTROL_SIG_REQ_SIG);
+  console.log(
+    "subscribe signing request topic at " + TOPIC_NCUBE_CONTROL_SIG_REQ_SIG,
   );
 });
 
@@ -60,18 +75,80 @@ mqtt_client.on("message", (topic: string, message: Buffer, packet: Packet) => {
   console.log("topic: ", topic);
   console.log("message: ", message.toString());
   console.log("packet: ", packet);
-  setTimeout(() => {
-    mqtt_client.publish(
-      TOPIC_SEC_CLIENT_RES_ENC,
-      `client eco > request topic: ${topic}`,
-    );
-  }, interval);
+
+  switch (topic) {
+    case TOPIC_NCUBE_CONTROL_AUTH_START: {
+      break;
+    }
+    case TOPIC_NCUBE_CONTROL_AUTH_REQ_AUTH: {
+      registeredResAuth.buffer.push(message.toString());
+      break;
+    }
+    case TOPIC_NCUBE_CONTROL_ENC_REQ_ENC: {
+      break;
+    }
+    case TOPIC_NCUBE_CONTROL_SIG_REQ_SIG: {
+      break;
+    }
+    default:
+      return;
+  }
 });
 
-setTimeout(() => {
-  console.log("on client publish called.");
-  mqtt_client.publish(
-    TOPIC_SEC_CLIENT_RES_ENC,
-    "This is the message from the client.",
-  );
-}, interval * 2);
+const readResolver = (
+  resolve: (
+    value?: string | PromiseLike<string | null> | null | undefined,
+  ) => void,
+) => {
+  if (registeredResAuth.buffer && registeredResAuth.buffer.length > 0) {
+    // get the earliest the message and shift
+    const message = registeredResAuth.buffer.shift();
+
+    resolve(message);
+    return;
+  } else {
+    setTimeout(() => {
+      readResolver(resolve);
+    }, interval);
+    return;
+  }
+};
+
+export class WriteHandlerImpl implements WriteHandler {
+  mqttClient: MqttClient;
+  constructor(mqttClient: MqttClient) {
+    this.mqttClient = mqttClient;
+  }
+
+  write = (message: string): Promise<number> => {
+    return new Promise((resolve): void => {
+      try {
+        this.mqttClient.publish(TOPIC_NCUBE_DATA_AUTH_RES_AUTH, message);
+        resolve(SUCCESS);
+        return;
+      } catch (e) {
+        resolve(FAILURE);
+        return;
+      }
+    });
+  };
+}
+
+export class ReadHandlerImpl implements ReadHandler {
+  read = (): Promise<string | null> => {
+    return new Promise((resolve): void => {
+      try {
+        readResolver(resolve);
+        return;
+      } catch (e) {
+        resolve(null);
+        return;
+      }
+    });
+  };
+}
+
+const writeHandler: WriteHandler = new WriteHandlerImpl(mqtt_client);
+const readHandler: ReadHandler = new ReadHandlerImpl();
+const dim: Dim = new Dim(writeHandler, readHandler);
+dim.tlsHandshake();
